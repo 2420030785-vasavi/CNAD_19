@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-watchdog
+  labels:
+    app: aws-watchdog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aws-watchdog
+  template:
+    metadata:
+      labels:
+        app: aws-watchdog
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+      containers:
+        - name: dashboard
+          image: aws-watchdog:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: "ap-southeast-2"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /api/connection
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/connection
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15

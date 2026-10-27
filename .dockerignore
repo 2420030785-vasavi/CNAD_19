@@ -1,0 +1,31 @@
+# Ignore Virtual Environments
+venv/
+.venv/
+env/
+
+# Ignore Terraform state & lock files
+terraform/.terraform/
+terraform/*.tfstate*
+terraform/.terraform.lock.hcl
+
+# Ignore local databases & secrets
+*.db
+.env
+*.pem
+*.key
+
+# Python cache & build files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git & IDEs
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Reports
+drift_report.json
+*.log

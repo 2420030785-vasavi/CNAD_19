@@ -1,0 +1,34 @@
+replicaCount: 1
+
+image:
+  repository: aws-watchdog
+  pullPolicy: IfNotPresent
+  tag: "v1"
+
+nameOverride: ""
+fullnameOverride: "aws-watchdog"
+
+service:
+  type: NodePort
+  port: 8000
+  nodePort: 30080
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+env:
+  awsRegion: "ap-southeast-2"
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 999
+  fsGroup: 999
+
+probes:
+  readinessPath: "/api/connection"
+  livenessPath: "/api/connection"

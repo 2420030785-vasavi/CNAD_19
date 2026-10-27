@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AWS Infra Watchdog &middot; Drift Detection & GreenOps</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Animated Background Glow Orbs -->
+  <div class="glow-bg">
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+  </div>
+
+  <div class="app-layout">
+    <!-- Sticky Top Navigation -->
+    <header class="navbar">
+      <div class="nav-brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-shield-cat"></i>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">AWS Watchdog</span>
+          <span class="brand-tag">GreenOps &amp; Drift</span>
+        </div>
+      </div>
+
+      <nav class="nav-links">
+        <button class="nav-btn active" data-view="overview">
+          <i class="fa-solid fa-gauge-high"></i> Overview
+        </button>
+        <button class="nav-btn" data-view="connection">
+          <i class="fa-solid fa-network-wired"></i> AWS Connection
+        </button>
+        <button class="nav-btn" data-view="greenops">
+          <i class="fa-solid fa-leaf"></i> GreenOps
+        </button>
+        <button class="nav-btn" data-view="history">
+          <i class="fa-solid fa-clock-rotate-left"></i> Incident History
+        </button>
+      </nav>
+
+      <div class="nav-right">
+        <div class="pill connection-pill" id="nav-connection-pill">
+          <span class="pulse-dot"></span>
+          <span id="nav-connection-text">Connecting...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-container">
+
+      <!-- ======================================================== -->
+      <!-- VIEW: OVERVIEW -->
+      <!-- ======================================================== -->
+      <section class="view active" id="view-overview">
+        <!-- Big Hero Status Banner -->
+        <div class="hero-banner status-loading" id="main-status-banner">
+          <div class="hero-icon" id="hero-status-icon">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+          </div>
+          <div class="hero-content">
+            <div class="hero-header-row">
+              <h2 id="hero-banner-title">Initializing Watchdog...</h2>
+              <span class="badge" id="hero-badge">SYNCING</span>
+            </div>
+            <p id="hero-banner-desc">Analyzing Terraform state against live Sydney infrastructure...</p>
+          </div>
+          <div class="hero-actions" id="hero-actions-container" style="display: none;">
+            <button class="btn btn-remediate" id="btn-remediate-banner">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Remediate Now
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Stat Cards with 3D Tilt Hover -->
+        <div class="stats-grid">
+          <div class="stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">Drift Status</span>
+              <div class="stat-icon purple"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            </div>
+            <div class="stat-val" id="stat-drift-status">Checking...</div>
+            <div class="stat-sub" id="stat-drift-sub">Compared vs terraform.tfstate</div>
+          </div>
+
+          <div class="stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">Security Group Rules</span>
+              <div class="stat-icon blue"><i class="fa-solid fa-shield-halved"></i></div>
+            </div>
+            <div class="stat-val" id="stat-sg-rules">0</div>
+            <div class="stat-sub" id="stat-sg-sub">Expected: 0 inbound</div>
+          </div>
+
+          <div class="stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">EC2 Instance (t3.micro)</span>
+              <div class="stat-icon green"><i class="fa-solid fa-server"></i></div>
+            </div>
+            <div class="stat-val" id="stat-server-state">--</div>
+            <div class="stat-sub" id="stat-server-ip">IP: --</div>
+          </div>
+
+          <div class="stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">GreenOps Carbon Rate</span>
+              <div class="stat-icon teal"><i class="fa-solid fa-leaf"></i></div>
+            </div>
+            <div class="stat-val" id="stat-carbon-rate">-- g/hr</div>
+            <div class="stat-sub" id="stat-carbon-sub">NSW Grid (640g CO2e/kWh)</div>
+          </div>
+        </div>
+
+        <!-- Drift & AI Analysis Section (Visible during drift or active incident) -->
+        <div class="card panel-card" id="drift-incident-panel" style="display: none;">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-bolt-lightning text-accent"></i>
+              <h3>Active Incident &amp; Remediation</h3>
+            </div>
+            <span class="badge badge-critical" id="incident-severity-badge">CRITICAL</span>
+          </div>
+          
+          <div class="incident-summary-box" id="incident-summary-text">
+            Loading incident summary...
+          </div>
+
+          <div class="ai-box">
+            <div class="ai-box-header">
+              <div class="ai-label">
+                <i class="fa-solid fa-brain"></i>
+                <span>Root Cause &amp; Remediation Analysis</span>
+              </div>
+              <span class="badge badge-ai" id="ai-model-badge">Gemini</span>
+            </div>
+            <div class="ai-explanation" id="ai-explanation-content">
+              Loading AI guidance...
+            </div>
+          </div>
+
+          <div class="remediate-footer">
+            <button class="btn btn-remediate" id="btn-remediate-now">
+              <i class="fa-solid fa-shield-virus"></i> Remediate Now (Revoke Unauthorized Rules)
+            </button>
+            <span class="remediate-hint">Removes unauthorized firewall ingress via boto3 &amp; logs audit trail to SQLite.</span>
+          </div>
+        </div>
+
+        <!-- Terraform Expects vs What is Running Table -->
+        <div class="card panel-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-code-compare text-purple"></i>
+              <h3>Terraform Expected Baseline vs. Live AWS State</h3>
+            </div>
+            <span class="badge badge-neutral">Auto-Sync 3s</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table-styled">
+              <thead>
+                <tr>
+                  <th>Resource Component</th>
+                  <th>Terraform State (Expected)</th>
+                  <th>Live AWS Environment (Actual)</th>
+                  <th>Compliance Status</th>
+                </tr>
+              </thead>
+              <tbody id="baseline-comparison-tbody">
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Comparing configuration state...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: AWS CONNECTION -->
+      <!-- ======================================================== -->
+      <section class="view" id="view-connection">
+        <div class="card hero-connection">
+          <div class="conn-grid">
+            <div class="conn-stat">
+              <span class="conn-label">AWS Region</span>
+              <span class="conn-value mono" id="conn-region">ap-southeast-2 (Sydney)</span>
+            </div>
+            <div class="conn-stat">
+              <span class="conn-label">AWS Account</span>
+              <span class="conn-value mono" id="conn-account">******</span>
+            </div>
+            <div class="conn-stat">
+              <span class="conn-label">IAM Identity / Role</span>
+              <span class="conn-value mono" id="conn-arn">arn:aws:...</span>
+            </div>
+            <div class="conn-stat">
+              <span class="conn-label">Average API Latency</span>
+              <span class="conn-value accent-green" id="conn-latency">-- ms</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Server & Security Group Cards -->
+        <div class="two-col-grid">
+          <div class="card panel-card">
+            <div class="card-header">
+              <div class="header-title">
+                <i class="fa-solid fa-server text-green"></i>
+                <h3>Monitored EC2 Instance</h3>
+              </div>
+              <span class="badge" id="conn-server-badge">--</span>
+            </div>
+            <ul class="detail-list" id="conn-server-details">
+              <li><span>Instance ID:</span> <span class="mono" id="detail-server-id">--</span></li>
+              <li><span>Instance Type:</span> <span class="mono" id="detail-server-type">t3.micro</span></li>
+              <li><span>Availability Zone:</span> <span class="mono" id="detail-server-az">--</span></li>
+              <li><span>Public IP:</span> <span class="mono" id="detail-server-ip">--</span></li>
+              <li><span>Launch Timestamp:</span> <span class="mono" id="detail-server-launch">--</span></li>
+            </ul>
+          </div>
+
+          <div class="card panel-card">
+            <div class="card-header">
+              <div class="header-title">
+                <i class="fa-solid fa-shield-halved text-purple"></i>
+                <h3>Firewall (Security Group)</h3>
+              </div>
+              <span class="badge" id="conn-sg-badge">--</span>
+            </div>
+            <ul class="detail-list" id="conn-sg-details">
+              <li><span>Security Group ID:</span> <span class="mono" id="detail-sg-id">--</span></li>
+              <li><span>Group Name:</span> <span class="mono" id="detail-sg-name">watchdog-sg</span></li>
+              <li><span>Active Inbound Rules:</span> <span class="mono" id="detail-sg-rules">0</span></li>
+              <li><span>Baseline Rule Expectation:</span> <span class="mono text-success">0 Inbound (ingress = [])</span></li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Live API Diagnostics Table -->
+        <div class="card panel-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-heart-pulse text-teal"></i>
+              <h3>Real-Time AWS API Call Telemetry</h3>
+            </div>
+            <button class="btn btn-sm" id="btn-refresh-connection"><i class="fa-solid fa-arrows-rotate"></i> Test Latency</button>
+          </div>
+          <div class="table-responsive">
+            <table class="table-styled">
+              <thead>
+                <tr>
+                  <th>AWS Service &amp; API Action</th>
+                  <th>Call Latency</th>
+                  <th>HTTP Response Status</th>
+                  <th>Execution Detail</th>
+                </tr>
+              </thead>
+              <tbody id="api-telemetry-tbody">
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-4">Testing connection...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: GREENOPS -->
+      <!-- ======================================================== -->
+      <section class="view" id="view-greenops">
+        <!-- Circular Gauge Rings & Stat Cards -->
+        <div class="greenops-grid">
+          <div class="card gauge-card tilt-card" data-tilt>
+            <div class="ring" id="ring-cpu" style="--pct: 5; --color: #4c82ff;">
+              <span class="ring-val" id="ring-cpu-val">0%</span>
+            </div>
+            <div class="ring-label">CPU Utilization</div>
+            <div class="ring-sub">5-Min CloudWatch Average</div>
+          </div>
+
+          <div class="card gauge-card tilt-card" data-tilt>
+            <div class="ring" id="ring-power" style="--pct: 20; --color: #3ddc84;">
+              <span class="ring-val" id="ring-power-val">1.48W</span>
+            </div>
+            <div class="ring-label">Estimated Server Power</div>
+            <div class="ring-sub">Idle: 1.48W &middot; Max: 7.0W</div>
+          </div>
+
+          <div class="card carbon-stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">Hourly Carbon Intensity</span>
+              <i class="fa-solid fa-cloud-arrow-up text-accent"></i>
+            </div>
+            <div class="stat-val accent-green" id="greenops-hourly-co2">-- gCO2e</div>
+            <div class="stat-sub">gCO2e per hour of runtime</div>
+          </div>
+
+          <div class="card carbon-stat-card tilt-card" data-tilt>
+            <div class="stat-top">
+              <span class="stat-label">Daily Carbon Projection</span>
+              <i class="fa-solid fa-calendar-day text-teal"></i>
+            </div>
+            <div class="stat-val" id="greenops-daily-co2">-- gCO2e</div>
+            <div class="stat-sub">Projected 24h operational footprint</div>
+          </div>
+        </div>
+
+        <!-- CloudWatch CPU Chart -->
+        <div class="card panel-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-chart-line text-blue"></i>
+              <h3>CloudWatch CPU Utilization Trend (Last Hour)</h3>
+            </div>
+            <span class="badge badge-neutral" id="cw-status-badge">Live Metric</span>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="cwCpuChart" height="85"></canvas>
+          </div>
+        </div>
+
+        <!-- Methodology Note Box -->
+        <div class="card panel-card methodology-box">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-book-open text-purple"></i>
+              <h3>Cloud Carbon Footprint (CCF) Estimation Methodology</h3>
+            </div>
+            <span class="badge badge-ai">GreenOps Standard</span>
+          </div>
+          <div class="methodology-content">
+            <p>Carbon footprint is estimated using the open-source <strong>Cloud Carbon Footprint</strong> scientific model adapted for AWS Sydney (<code>ap-southeast-2</code>):</p>
+            <div class="formula-block mono">
+              Power (W) = 2 vCPUs &times; [0.74W + (CPU% / 100) &times; (3.5W - 0.74W)]<br>
+              Energy (kWh/h) = (Power in W / 1000) &times; 1.135 (AWS PUE)<br>
+              Emissions (gCO2e/h) = Energy (kWh/h) &times; 640 gCO2e/kWh (NSW Grid Factor, NGA 2025)
+            </div>
+            <p class="methodology-note text-muted">
+              <i class="fa-solid fa-circle-info"></i> All carbon numbers are calibrated estimates for student sustainability research. New EC2 instances take 5-10 minutes for CloudWatch metrics to propagate.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================================================== -->
+      <!-- VIEW: INCIDENT HISTORY -->
+      <!-- ======================================================== -->
+      <section class="view" id="view-history">
+        <div class="card panel-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa-solid fa-clock-rotate-left text-accent"></i>
+              <h3>Security &amp; Drift Audit Trail (SQLite)</h3>
+            </div>
+            <button class="btn btn-sm" id="btn-refresh-history">
+              <i class="fa-solid fa-arrows-rotate"></i> Refresh Log
+            </button>
+          </div>
+          <div class="table-responsive">
+            <table class="table-styled">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Status</th>
+                  <th>Severity</th>
+                  <th>Detection Time</th>
+                  <th>Summary &amp; Cause</th>
+                  <th>Engine</th>
+                  <th>Resolution Details</th>
+                </tr>
+              </thead>
+              <tbody id="incidents-table-tbody">
+                <tr>
+                  <td colspan="7" class="text-center text-muted py-4">Loading audit logs...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

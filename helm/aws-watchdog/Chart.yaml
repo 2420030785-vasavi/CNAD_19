@@ -1,0 +1,8 @@
+apiVersion: v2
+name: aws-watchdog
+description: Helm chart for AI-Driven AWS Drift Detection & GreenOps Watchdog
+type: application
+version: 1.0.0
+appVersion: "2.0.0"
+maintainers:
+  - name: Student Project
