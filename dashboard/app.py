@@ -47,11 +47,15 @@ _cache: Dict[str, Any] = {
 }
 
 # ---------------------------------------------------------
+def get_db_connection():
+    return sqlite3.connect(DB_PATH, timeout=15.0)
+
+# ---------------------------------------------------------
 # Database Initialization
 # ---------------------------------------------------------
 def init_db():
     with db_lock:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS incidents (
@@ -72,10 +76,15 @@ def init_db():
 init_db()
 
 # ---------------------------------------------------------
-# AWS Clients (ap-southeast-2)
+# AWS Clients (Cached & Pooled for Long-Running Stability)
 # ---------------------------------------------------------
+_boto3_clients: Dict[tuple, Any] = {}
+
 def get_boto3_client(service_name: str, region_name: str = AWS_REGION):
-    return boto3.client(service_name, region_name=region_name)
+    key = (service_name, region_name)
+    if key not in _boto3_clients:
+        _boto3_clients[key] = boto3.client(service_name, region_name=region_name)
+    return _boto3_clients[key]
 
 # ---------------------------------------------------------
 # Terraform State Parser
@@ -186,7 +195,7 @@ def generate_ai_explanation(drift_summary: str, severity: str) -> tuple[str, str
 # ---------------------------------------------------------
 def sync_incident(differences: List[Dict[str, Any]], is_empty: bool) -> Optional[Dict[str, Any]]:
     with db_lock:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
 
         # Check for open incident
@@ -640,7 +649,7 @@ def remediate_drift():
 
     # Mark open incident as resolved in DB
     with db_lock:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         cursor = conn.cursor()
         now_str = datetime.now(timezone.utc).isoformat()
         cursor.execute(
@@ -660,7 +669,7 @@ def remediate_drift():
 @app.get("/api/incidents")
 def get_incidents():
     with db_lock:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM incidents ORDER BY id DESC LIMIT 50")
