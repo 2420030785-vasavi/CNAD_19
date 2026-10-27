@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     # Set to your GitHub repo URL once pushed
-    repoURL: 'https://github.com/USER/aws-watchdog.git'
+    repoURL: 'https://github.com/2420030785-vasavi/CNAD_19.git'
     targetRevision: HEAD
     path: helm/aws-watchdog
     helm:
